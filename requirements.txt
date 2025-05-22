@@ -3,3 +3,5 @@ SQLAlchemy==2.0.29
 python-dotenv==1.0.1
 pandas
 rich
+tqdm
+toml
