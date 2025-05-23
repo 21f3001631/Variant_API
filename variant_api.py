@@ -1,39 +1,34 @@
-# variant_api.py — Flask API ready for Render deployment
-
 from flask import Flask, request, jsonify
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, and_, text
 from sqlalchemy.orm import Session
-from vcfdb import Records  # Ensure vcfdb.py defines the Records model
-from dotenv import load_dotenv
 import os
-import traceback
+from dotenv import load_dotenv
 
-# Load environment variables from .env or Render environment
+# Load environment variables from .env
 load_dotenv()
 
-app = Flask(__name__)
-
-# Load API key and DB URI
 API_KEY = os.getenv("VARIANT_API_KEY", "default-key")
-DATABASE_URI = os.getenv("DATABASE_URL", "sqlite:///vcfdb/vcfdb.sqlite")
+DATABASE_URI = os.getenv("DATABASE_URL", "sqlite:///fallback.db")
 
-# Fix deprecated Postgres URI on Heroku/Render
+# Ensure Heroku-compatible Postgres URI
 if DATABASE_URI.startswith("postgres://"):
     DATABASE_URI = DATABASE_URI.replace("postgres://", "postgresql://")
 
+# Flask app and database engine
+app = Flask(__name__)
 engine = create_engine(DATABASE_URI)
+
+# Import Records model after engine setuprom vcfdb import Records
 
 @app.route('/variant', methods=['GET'])
 def get_variant():
     try:
-        # Auth check
         if request.headers.get("X-API-Key") != API_KEY:
             return jsonify({"error": "Unauthorized"}), 401
 
         chrom = request.args.get('chr')
         pos = request.args.get('pos')
 
-        # Parameter validation
         if not chrom or not pos:
             return jsonify({"error": "Missing 'chr' or 'pos' parameter"}), 400
 
@@ -42,27 +37,46 @@ def get_variant():
         except ValueError:
             return jsonify({"error": "Position must be an integer"}), 400
 
-        # Query database
         with Session(engine) as session:
-            count = session.query(Records).filter_by(**{"#CHROM": chrom, "POS": pos}).count()
+            result = session.execute(
+                text("SELECT COUNT(*) FROM Records WHERE \"#CHROM\" = :chrom AND POS = :pos"),
+                {"chrom": chrom, "pos": pos}
+            )
+            count = result.scalar()
 
-        return jsonify({
-            "chr": chrom,
-            "pos": pos,
-            "count": count
-        })
+        return jsonify({"chr": chrom, "pos": pos, "count": count})
 
     except Exception as e:
-        return jsonify({
-            "error": str(e),
-            "trace": traceback.format_exc()
-        }), 500
+        import traceback
+        print(traceback.format_exc())
+        return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
 
-# Entry point for local/server run
+@app.route('/variant_public', methods=['GET'])
+def get_variant_public():
+    chrom = request.args.get('chr')
+    pos = request.args.get('pos')
+
+    if not chrom or not pos:
+        return jsonify({"error": "Missing 'chr' or 'pos' parameter"}), 400
+
+    try:
+        pos = int(pos)
+    except ValueError:
+        return jsonify({"error": "Position must be an integer"}), 400
+
+    with Session(engine) as session:
+        result = session.execute(
+            text("SELECT COUNT(*) FROM Records WHERE \"#CHROM\" = :chrom AND POS = :pos"),
+            {"chrom": chrom, "pos": pos}
+        )
+        count = result.scalar()
+
+    return jsonify({"chr": chrom, "pos": pos, "count": count})
+
 if __name__ == "__main__":
-    print("✅ Available columns in Records table:")
+    print("\u2705 Available columns in Records table:")
     for col in Records.__table__.columns:
         print(" -", col.name)
 
-    port = int(os.environ.get("PORT", 5000))  # Render/Heroku assigns dynamic port
+    port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
