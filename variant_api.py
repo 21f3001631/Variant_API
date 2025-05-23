@@ -16,6 +16,12 @@ if DATABASE_URI.startswith("postgres://"):
 
 # Flask app and database engine
 app = Flask(__name__)
+# Create SQLAlchemy engine
+engine = create_engine(DATABASE_URI)
+
+# ✅ Now import the model that needs the engine
+from vcfdb import Records
+
 engine = create_engine(DATABASE_URI)
 
 # Import Records model after engine setuprom vcfdb import Records
