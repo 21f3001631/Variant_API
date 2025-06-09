@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>IMGG Database Variant Lookup</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f5f5f5;
+      padding: 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #1a237e;
+      font-size: 24px;
+    }
+    label, input {
+      display: block;
+      width: 100%;
+      margin-bottom: 10px;
+    }
+    input {
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    button {
+      padding: 10px 15px;
+      background-color: #2962ff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .result {
+      margin-top: 20px;
+      padding: 10px;
+      border-radius: 4px;
+      background: #e3f2fd;
+      color: #0d47a1;
+      white-space: pre-wrap;
+    }
+    .error {
+      background: #ffebee;
+      color: #b71c1c;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 IMGG Database Variant Lookup (hg19/GRCh37)</h1>
+    <label for="chr">Chromosome (e.g., chr1):</label>
+    <input type="text" id="chr" placeholder="chr1"/>
+    <label for="pos">Position (e.g., 10386304):</label>
+    <input type="number" id="pos" placeholder="10386304"/>
+    <button onclick="lookupVariant()">🔍 Search</button>
+    <div id="result" class="result"></div>
+  </div>
+
+  <script>
+    async function lookupVariant() {
+      const chr = document.getElementById('chr').value.trim();
+      const pos = document.getElementById('pos').value.trim();
+      const resultDiv = document.getElementById('result');
+      resultDiv.className = 'result';
+      resultDiv.textContent = 'Searching...';
+
+      try {
+        const response = await fetch(`/variant_public?chr=${encodeURIComponent(chr)}&pos=${encodeURIComponent(pos)}`);
+        const contentType = response.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+          throw new Error("Server did not return JSON");
+        }
+        const data = await response.json();
+
+        // Pretty print formatted result
+        resultDiv.innerHTML = `
+  <strong>Chromosome:</strong> ${data.chr}<br>
+  <strong>Position:</strong> ${data.pos}<br>
+  <strong>Found ${data.count} occurrences across ${data.distinct_files} seen files</strong><br>
+  <strong>Heterozygous (0/1):</strong> ${data["heterozygous (0/1)"]}<br>
+  <strong>Homozygous (1/1):</strong> ${data["homozygous (1/1)"]}<br>
+  <strong>Other Genotypes (like 1/2 etc.):</strong> ${data["other_genotypes"]}
+`;
+
+      } catch (err) {
+        resultDiv.className = 'result error';
+        resultDiv.textContent = `❌ Server did not return JSON:\n${err}`;
+      }
+    }
+  </script>
+</body>
+</html>
