@@ -5,3 +5,4 @@ pandas
 rich
 tqdm
 toml
+flask_cors
